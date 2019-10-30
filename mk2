@@ -1,0 +1,124 @@
+#!/usr/bin/python
+
+import random
+import numpy
+from math import *
+
+class Poblacion:
+
+	def __init__(self, imagenModelo, largoArray, cantidadIndividuos, pressure, posibilidadMutacion, metodoComparacion=3):
+		self.imagenModelo        = imagenModelo
+		self.largoArray          = largoArray
+		self.cantidadIndividuos  = cantidadIndividuos
+		self.pressure            = pressure
+		self.posibilidadMutacion = posibilidadMutacion
+		self.metodo              = metodoComparacion
+
+		self.poblacion = [[random.randint(0, 255) for i in range(largoArray)] for i in range(cantidadIndividuos)]
+		print("Especimen de Poblacion Inicial:\n%s"%(self.poblacion[random.randint(0,cantidadIndividuos-1)])) #Se muestra un especimen aleatorio de la poblacion inicial
+		print("Adaptabilidad de poblacion inicial: %s"%[self.calcularAdaptabilidad(self.poblacion[d]) for d in range(cantidadIndividuos)])
+
+	def cruzar(self):
+		"""
+		Recibe una poblacion(arreglo bidimensional)
+		Puntua todos los elementos de la poblacion y se queda con los mejores
+		guardandolos dentro de 'selected'.
+		Despues mezcla el material genetico de los elegidos para crear nuevos individuos y
+		llenar la poblacion (guardando tambien una copia de los individuos seleccionados sin
+		modificar).
+		"""
+		if(self.metodo == 1):
+			#Distancia euclediana, por lo que se necesitan los que tienen el resultado mas bajo. 
+			puntuados = [(self.distanciaEuclediana(i), i) for i in self.poblacion] 
+			puntuados = [i[1] for i in sorted(puntuados,reverse=True)] 
+		elif(self.metodo == 2):
+			#Mean squared Error, por lo que se necesitan los que tienen el resultado mas bajo. 
+			puntuados = [(self.mse(i), i) for i in self.poblacion] 
+			puntuados = [i[1] for i in sorted(puntuados,reverse=True)] 
+		else:
+			puntuados = [(self.calcularAdaptabilidad(i), i) for i in self.poblacion] 
+			puntuados = [i[1] for i in sorted(puntuados)]
+		self.poblacion = puntuados
+
+		cruzandos =  puntuados[(len(puntuados)-pressure):] #Esta linea selecciona los 'n' individuos del final, donde n viene dado por 'pressure'
+
+		#Se mezcla el material genetico para crear nuevos individuos
+		for i in range(len(self.poblacion)-self.pressure):
+			punto = random.randint(1, self.cantidadIndividuos-1) #Se elige un punto en el cromosoma para hacer el intercambio
+			padre = random.sample(cruzandos, 2) #Se eligen dos padres
+
+			self.poblacion[i][:punto] = padre[0][:punto] #Se mezcla el material genetico de los padres en cada nuevo individuo
+			self.poblacion[i][punto:] = padre[1][punto:]
+
+
+	def mutar(self):
+		"""
+		Se mutan los individuos al azar. Sin la mutacion de nuevos genes nunca podria
+		alcanzarse la solucion.
+		"""
+		for i in range(len(self.poblacion)-pressure):
+			if random.random() <= self.posibilidadMutacion: #Cada individuo de la poblacion (menos los padres) tienen una probabilidad de mutar
+				punto = random.randint(0,self.cantidadIndividuos-1) #Se elgie un punto al azar
+				nuevo_valor = random.randint(1,9) #y un nuevo valor para este punto
+
+				#Es importante mirar que el nuevo valor no sea igual al viejo
+				while nuevo_valor == self.poblacion[i][punto]:
+					nuevo_valor = random.randint(1,9)
+
+				#Se aplica la mutacion
+				self.poblacion[i][punto] = nuevo_valor
+
+	def desarrollarGeneraciones(self, numero_generaciones):
+		"""
+		Este metodo lleva a cabo n generaciones de cruces entre la poblacion
+			retorna el especimen mejor adaptado.
+		"""
+		for i in range(numero_generaciones):
+			print("Generacion %d"%i)
+			#print(population)
+			self.cruzar()
+			self.mutar()
+
+
+	#############################################
+	#  METODOS DE ADAPTABILIDAD                 #
+	#############################################
+
+	def distanciaEuclediana(self, x):
+		#global modelo
+		potencias = [pow(a-b,2) for a, b in zip(x, self.imagenModelo)]
+		return sqrt(sum(potencias))
+
+	def calcularAdaptabilidad(self, individual):
+		fitness = 0
+		for i in range(len(individual)):
+			if individual[i] == self.imagenModelo[i]:
+				fitness += 1
+		return fitness
+
+	def mse(self, imageA):
+		# the 'Mean Squared Error' between the two images is the
+		# sum of the squared difference between the two images;
+		# NOTE: the two images must have the same dimension
+		err = numpy.sum((imageA - self.imagenModelo) ** 2)
+		err /= float(self.cantidadIndividuos)
+
+		# return the MSE, the lower the error, the more "similar"
+		# the two images are
+		return err
+
+# PARA PRUEBAS:
+
+modelo = [1 for i in range (1024)] #Objetivo a alcanzar
+largo = 1024 #La longitud del material genetico de cada individuo
+num = 10 #La cantidad de individuos que habra en la poblacion
+pressure = 3 #Cuantos individuos se seleccionan para reproduccion. Necesariamente mayor que 2
+mutation_chance = 0.2 #La probabilidad de que un individuo mute
+
+nuevaPoblacion = Poblacion(modelo, largo, num, pressure, mutation_chance)
+nuevaPoblacion.desarrollarGeneraciones(10000)
+
+
+print("\nPoblacion Final:\n%s"%(nuevaPoblacion.poblacion)) #Se muestra la poblacion evolucionada
+print("Fitness poblacion final: %s"%[nuevaPoblacion.calcularAdaptabilidad(nuevaPoblacion.poblacion[d]) for d in range(num)])
+print("\n\n")
